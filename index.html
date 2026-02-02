@@ -2,87 +2,306 @@
 <html lang="ko">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1" />
-<title>Erasing</title>
-
-<!-- EMBED MODE DETECTION (query: ?embed=1) -->
-<script>
-(function(){
-  const params = new URLSearchParams(window.location.search);
-  if (params.get("embed") === "1") {
-    document.documentElement.classList.add("embed");
-  }
-})();
-</script>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Residual Birth by Digitizing</title>
 
 <style>
-/* ===== DEFAULT (standalone) ===== */
-
-html, body{
-  margin:0;
-  padding:0;
-  height:100%;
+:root{
+  --bg:#ffffff;
+  --line:#d9d9d9;
+  --ui:#666;
+  --track:#e0e0e0;
+  --fill:#888;
+  --thumb:#888;
+  --muted:#666;
 }
 
+*{ box-sizing:border-box; }
+
 body{
-  background:#f5f5f5;
-  display:grid;
-  place-items:center;
+  margin:0;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  background: var(--bg);
+  color:#111;
 }
 
 .wrap{
-  max-width:960px;
-  width:100%;
+  max-width: 860px;
+  margin: 40px auto;
+  padding: 0 16px 40px;
 }
 
-/* ===== EMBED MODE ===== */
-
-html.embed, html.embed body{
-  background:#fff !important;
-  overflow:hidden;
+.stack{
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 28px;   /* 플레이어 사이 간격 */
 }
 
-/* iframe 안에서는 중앙정렬 제거 */
-html.embed body{
-  display:block;
+/* 카드 박스 제거 */
+.player{
+  display: grid;
+  grid-template-columns: auto auto 1fr auto auto auto;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding-bottom: 12px;
+  /* border-bottom 제거 */
 }
 
-/* 핵심: embed일 때는 전체 viewport 사용 */
-html.embed .wrap{
-  width:100vw;
-  height:100vh;
-  max-width:none;
-  display:flex;
-  align-items:stretch;
-  justify-content:stretch;
+/* 버튼 배경 제거 */
+.btn{
+  border: none;
+  background: transparent;
+  padding: 0;
+  cursor: pointer;
 }
 
-/* 실제 콘텐츠가 들어가는 메인 컨테이너 */
-.main{
-  flex:1;
-  width:100%;
-  height:100%;
-  display:flex;
-  align-items:center;     /* 필요하면 stretch로 */
-  justify-content:center;
+.btn svg{
+  width: 24px;
+  height: 24px;
+  fill: var(--ui);
+}
+
+/* 시간 */
+.time, .dur{
+  font-variant-numeric: tabular-nums;
+  color: var(--ui);
+  font-size: 14px;
+  min-width: 46px;
+}
+
+/* 슬라이더 */
+.range{
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 999px;
+  background: linear-gradient(to right,
+    var(--fill) 0%,
+    var(--fill) var(--pct,0%),
+    var(--track) var(--pct,0%),
+    var(--track) 100%);
+  outline: none;
+}
+
+.range::-webkit-slider-thumb{
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--thumb);
+  cursor: pointer;
+}
+
+.range::-moz-range-thumb{
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  background: var(--thumb);
+  cursor: pointer;
+}
+
+/* 볼륨 아이콘 배경 제거 */
+.icon{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.icon svg{
+  width: 20px;
+  height: 20px;
+  fill: var(--ui);
+}
+
+.vol{
+  width: 120px;
+}
+
+.tip{
+  margin-top: 24px;
+  font-size: 12px;
+  color: var(--muted);
 }
 </style>
 </head>
 
 <body>
-
 <div class="wrap">
-  <div class="main">
 
-    <!-- ===== 여기 안에 기존 erasing 콘텐츠 그대로 ===== -->
+  <section class="stack">
 
-    <h1>Erasing</h1>
-    <p>Your existing content goes here.</p>
+    <!-- PLAYER 1 -->
+    <div class="player" data-player>
+      <button class="btn" data-play>
+        <svg viewBox="0 0 24 24" data-ico>
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </button>
 
-    <!-- ============================================== -->
+      <div class="time" data-current>0:00</div>
+      <input class="range" type="range" min="0" max="100" value="0" step="0.1" data-seek>
+      <div class="dur" data-duration>0:00</div>
 
-  </div>
+      <div class="icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/>
+        </svg>
+      </div>
+
+      <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol>
+
+      <audio preload="metadata" data-audio>
+        <source src="audio/01_original.mp3" type="audio/mpeg">
+      </audio>
+    </div>
+
+    <!-- PLAYER 2 -->
+    <div class="player" data-player>
+      <button class="btn" data-play>
+        <svg viewBox="0 0 24 24" data-ico>
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </button>
+
+      <div class="time" data-current>0:00</div>
+      <input class="range" type="range" min="0" max="100" value="0" step="0.1" data-seek>
+      <div class="dur" data-duration>0:00</div>
+
+      <div class="icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/>
+        </svg>
+      </div>
+
+      <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol>
+
+      <audio preload="metadata" data-audio>
+        <source src="audio/02_denoised.mp3" type="audio/mpeg">
+      </audio>
+    </div>
+
+    <!-- PLAYER 3 -->
+    <div class="player" data-player>
+      <button class="btn" data-play>
+        <svg viewBox="0 0 24 24" data-ico>
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </button>
+
+      <div class="time" data-current>0:00</div>
+      <input class="range" type="range" min="0" max="100" value="0" step="0.1" data-seek>
+      <div class="dur" data-duration>0:00</div>
+
+      <div class="icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/>
+        </svg>
+      </div>
+
+      <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol>
+
+      <audio preload="metadata" data-audio>
+        <source src="audio/03_no_noise_no_bgm.mp3" type="audio/mpeg">
+      </audio>
+    </div>
+
+    <!-- PLAYER 4 -->
+    <div class="player" data-player>
+      <button class="btn" data-play>
+        <svg viewBox="0 0 24 24" data-ico>
+          <path d="M8 5v14l11-7z"/>
+        </svg>
+      </button>
+
+      <div class="time" data-current>0:00</div>
+      <input class="range" type="range" min="0" max="100" value="0" step="0.1" data-seek>
+      <div class="dur" data-duration>0:00</div>
+
+      <div class="icon">
+        <svg viewBox="0 0 24 24">
+          <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/>
+        </svg>
+      </div>
+
+      <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol>
+
+      <audio preload="metadata" data-audio>
+        <source src="audio/04_residual.mp3" type="audio/mpeg">
+      </audio>
+    </div>
+
+  </section>
+
+  <div class="tip">팁: iPhone/Safari는 사용자 제스처(클릭/탭) 없이 자동 재생이 안 됩니다.</div>
+
 </div>
+
+<script>
+const fmtTime = (sec) => {
+  sec = Math.max(0, sec || 0);
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${m}:${String(s).padStart(2,'0')}`;
+};
+
+const setPct = (el,p)=>el.style.setProperty('--pct',`${p}%`);
+
+const audios=[];
+
+document.querySelectorAll('[data-player]').forEach(root=>{
+  const audio=root.querySelector('[data-audio]');
+  const play=root.querySelector('[data-play]');
+  const ico=root.querySelector('[data-ico]');
+  const seek=root.querySelector('[data-seek]');
+  const vol=root.querySelector('[data-vol]');
+  const cur=root.querySelector('[data-current]');
+  const dur=root.querySelector('[data-duration]');
+
+  audios.push(audio);
+
+  audio.addEventListener('loadedmetadata',()=>{
+    dur.textContent=fmtTime(audio.duration);
+  });
+
+  audio.addEventListener('timeupdate',()=>{
+    cur.textContent=fmtTime(audio.currentTime);
+    const p=audio.duration?audio.currentTime/audio.duration*100:0;
+    seek.value=p;
+    setPct(seek,p);
+  });
+
+  audio.addEventListener('play',()=>{
+    audios.forEach(a=>{if(a!==audio&&!a.paused)a.pause();});
+    ico.innerHTML='<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
+  });
+
+  audio.addEventListener('pause',()=>{
+    ico.innerHTML='<path d="M8 5v14l11-7z"/>';
+  });
+
+  play.addEventListener('click',()=>{
+    audio.paused?audio.play():audio.pause();
+  });
+
+  seek.addEventListener('input',()=>{
+    const t=(seek.value/100)*audio.duration;
+    cur.textContent=fmtTime(t);
+    setPct(seek,seek.value);
+  });
+
+  seek.addEventListener('change',()=>{
+    audio.currentTime=(seek.value/100)*audio.duration;
+  });
+
+  vol.addEventListener('input',()=>{
+    audio.volume=vol.value;
+    setPct(vol,vol.value*100);
+  });
+
+});
+</script>
 
 </body>
 </html>

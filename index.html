@@ -301,6 +301,20 @@ document.querySelectorAll('[data-player]').forEach(root=>{
 
 });
 </script>
+<script>
+function sendHeight(){
+  const h = document.documentElement.scrollHeight;
+  parent.postMessage({ type: "ERASING_HEIGHT", height: h }, "*");
+}
+
+window.addEventListener("load", sendHeight);
+window.addEventListener("resize", sendHeight);
+
+// 오디오 메타데이터 로드 후도 다시 측정
+document.querySelectorAll("audio").forEach(a=>{
+  a.addEventListener("loadedmetadata", sendHeight);
+});
+</script>
 
 </body>  
 </html>

@@ -8,7 +8,6 @@
 <style>
 :root{
   --bg:#ffffff;
-  --line:#d9d9d9;
   --ui:#666;
   --track:#e0e0e0;
   --fill:#888;
@@ -45,7 +44,6 @@ body{
   gap: 14px;
   width: 100%;
   padding-bottom: 12px;
-  /* border-bottom 제거 */
 }
 
 /* 버튼 배경 제거 */
@@ -70,7 +68,7 @@ body{
   min-width: 46px;
 }
 
-/* 슬라이더 */
+/* 슬라이더(시크/볼륨) */
 .range{
   width: 100%;
   -webkit-appearance: none;
@@ -102,7 +100,7 @@ body{
   cursor: pointer;
 }
 
-/* 볼륨 아이콘 배경 제거 */
+/* 볼륨 아이콘 */
 .icon{
   display: inline-flex;
   align-items: center;
@@ -115,8 +113,23 @@ body{
   fill: var(--ui);
 }
 
-.vol{
-  width: 120px;
+.vol{ width: 120px; }
+
+/* ===== Amplitude meter ===== */
+.amp{
+  grid-column: 1 / -1;           /* 한 줄로 전체 폭 사용 */
+  height: 6px;
+  border-radius: 999px;
+  background: var(--track);
+  overflow: hidden;
+  margin-top: 10px;
+}
+
+.amp > span{
+  display:block;
+  height:100%;
+  width: 0%;
+  background: var(--fill);
 }
 
 .tip{
@@ -129,7 +142,6 @@ body{
 
 <body>
 <div class="wrap">
-
   <section class="stack">
 
     <!-- PLAYER 1 -->
@@ -151,6 +163,9 @@ body{
       </div>
 
       <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol>
+
+      <!-- amplitude -->
+      <div class="amp" data-amp aria-hidden="true"><span></span></div>
 
       <audio preload="metadata" data-audio>
         <source src="audio/01_original.mp3" type="audio/mpeg">
@@ -177,6 +192,8 @@ body{
 
       <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol>
 
+      <div class="amp" data-amp aria-hidden="true"><span></span></div>
+
       <audio preload="metadata" data-audio>
         <source src="audio/02_denoised.mp3" type="audio/mpeg">
       </audio>
@@ -201,6 +218,8 @@ body{
       </div>
 
       <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol>
+
+      <div class="amp" data-amp aria-hidden="true"><span></span></div>
 
       <audio preload="metadata" data-audio>
         <source src="audio/03_no_noise_no_bgm.mp3" type="audio/mpeg">
@@ -227,17 +246,21 @@ body{
 
       <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol>
 
+      <div class="amp" data-amp aria-hidden="true"><span></span></div>
+
       <audio preload="metadata" data-audio>
         <source src="audio/04_residual.mp3" type="audio/mpeg">
       </audio>
     </div>
 
   </section>
-
-
 </div>
 
 <script>
+/* =========================
+   Players + Amplitude Meter
+========================= */
+
 const fmtTime = (sec) => {
   sec = Math.max(0, sec || 0);
   const m = Math.floor(sec / 60);
@@ -246,62 +269,136 @@ const fmtTime = (sec) => {
 };
 
 const setPct = (el,p)=>el.style.setProperty('--pct',`${p}%`);
+const clamp01 = (x)=>Math.max(0, Math.min(1, x));
 
-const audios=[];
+const audios = [];
+
+// Shared WebAudio context
+let ctx = null;
+function ensureCtx(){
+  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
+  return ctx;
+}
+async function resumeCtx(){
+  const c = ensureCtx();
+  if (c.state === "suspended"){
+    try { await c.resume(); } catch {}
+  }
+}
 
 document.querySelectorAll('[data-player]').forEach(root=>{
-  const audio=root.querySelector('[data-audio]');
-  const play=root.querySelector('[data-play]');
-  const ico=root.querySelector('[data-ico]');
-  const seek=root.querySelector('[data-seek]');
-  const vol=root.querySelector('[data-vol]');
-  const cur=root.querySelector('[data-current]');
-  const dur=root.querySelector('[data-duration]');
+  const audio = root.querySelector('[data-audio]');
+  const play  = root.querySelector('[data-play]');
+  const ico   = root.querySelector('[data-ico]');
+  const seek  = root.querySelector('[data-seek]');
+  const vol   = root.querySelector('[data-vol]');
+  const cur   = root.querySelector('[data-current]');
+  const dur   = root.querySelector('[data-duration]');
+  const ampBar = root.querySelector('[data-amp] > span');
 
   audios.push(audio);
 
+  // Route through WebAudio so we can analyze amplitude reliably.
+  // Prevent double-audio by muting the native <audio> output.
+  audio.muted = true;
+
+  const c = ensureCtx();
+  const source = c.createMediaElementSource(audio);
+  const analyser = c.createAnalyser();
+  analyser.fftSize = 2048;
+
+  const gain = c.createGain();
+  gain.gain.value = Number(vol.value || 1);
+
+  source.connect(analyser);
+  analyser.connect(gain);
+  gain.connect(c.destination);
+
+  const buf = new Uint8Array(analyser.fftSize);
+  let smoothed = 0;
+
+  function tickAmp(){
+    if (audio.paused || audio.ended){
+      smoothed *= 0.85;
+      if (ampBar) ampBar.style.width = `${Math.round(smoothed*100)}%`;
+      requestAnimationFrame(tickAmp);
+      return;
+    }
+
+    analyser.getByteTimeDomainData(buf);
+
+    // RMS (time domain)
+    let sum = 0;
+    for (let i = 0; i < buf.length; i++){
+      const v = (buf[i] - 128) / 128;
+      sum += v * v;
+    }
+    const rms = Math.sqrt(sum / buf.length);      // 0..~1
+    const level = clamp01(rms * 2.2);             // boost for visibility
+
+    smoothed = smoothed * 0.75 + level * 0.25;    // smooth
+
+    if (ampBar) ampBar.style.width = `${Math.round(smoothed*100)}%`;
+    requestAnimationFrame(tickAmp);
+  }
+  tickAmp();
+
+  // Metadata/time UI
   audio.addEventListener('loadedmetadata',()=>{
-    dur.textContent=fmtTime(audio.duration);
+    dur.textContent = fmtTime(audio.duration);
   });
 
   audio.addEventListener('timeupdate',()=>{
-    cur.textContent=fmtTime(audio.currentTime);
-    const p=audio.duration?audio.currentTime/audio.duration*100:0;
-    seek.value=p;
-    setPct(seek,p);
+    cur.textContent = fmtTime(audio.currentTime);
+    const p = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+    seek.value = p;
+    setPct(seek, p);
   });
 
   audio.addEventListener('play',()=>{
-    audios.forEach(a=>{if(a!==audio&&!a.paused)a.pause();});
-    ico.innerHTML='<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
+    // one-at-a-time policy
+    audios.forEach(a=>{
+      if (a !== audio && !a.paused) a.pause();
+    });
+    ico.innerHTML = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
   });
 
   audio.addEventListener('pause',()=>{
-    ico.innerHTML='<path d="M8 5v14l11-7z"/>';
+    ico.innerHTML = '<path d="M8 5v14l11-7z"/>';
   });
 
-  play.addEventListener('click',()=>{
-    audio.paused?audio.play():audio.pause();
+  // Controls
+  play.addEventListener('click', async ()=>{
+    await resumeCtx(); // mobile autoplay policy
+    audio.paused ? audio.play() : audio.pause();
   });
 
   seek.addEventListener('input',()=>{
-    const t=(seek.value/100)*audio.duration;
-    cur.textContent=fmtTime(t);
-    setPct(seek,seek.value);
+    const t = (seek.value/100) * (audio.duration || 0);
+    cur.textContent = fmtTime(t);
+    setPct(seek, seek.value);
   });
 
   seek.addEventListener('change',()=>{
-    audio.currentTime=(seek.value/100)*audio.duration;
+    audio.currentTime = (seek.value/100) * (audio.duration || 0);
   });
 
+  // Volume controls WebAudio gain (since <audio> is muted)
   vol.addEventListener('input',()=>{
-    audio.volume=vol.value;
-    setPct(vol,vol.value*100);
+    const v = Number(vol.value);
+    gain.gain.value = v;
+    setPct(vol, v*100);
   });
 
+  // init slider fills
+  setPct(vol, Number(vol.value)*100);
 });
 </script>
+
 <script>
+/* =========================
+   iframe height messenger
+========================= */
 function sendHeight(){
   const h = document.documentElement.scrollHeight;
   parent.postMessage({ type: "ERASING_HEIGHT", height: h }, "*");
@@ -310,11 +407,10 @@ function sendHeight(){
 window.addEventListener("load", sendHeight);
 window.addEventListener("resize", sendHeight);
 
-// 오디오 메타데이터 로드 후도 다시 측정
 document.querySelectorAll("audio").forEach(a=>{
   a.addEventListener("loadedmetadata", sendHeight);
 });
 </script>
 
-</body>  
+</body>
 </html>

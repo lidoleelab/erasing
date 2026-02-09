@@ -36,7 +36,6 @@ body{
   gap: 28px;
 }
 
-/* 원래 레이아웃 유지 */
 .player{
   display: grid;
   grid-template-columns: auto auto 1fr auto auto auto;
@@ -66,7 +65,6 @@ body{
   min-width: 46px;
 }
 
-/* 슬라이더 */
 .range{
   width: 100%;
   -webkit-appearance: none;
@@ -112,28 +110,20 @@ body{
 
 .vol{ width: 120px; }
 
-/* ===== seek + EQ (같은 칼럼 안에서만) ===== */
+/* ===== seek + waveform preview ===== */
 .seekwrap{
   display: grid;
   gap: 10px;
   align-items: center;
 }
 
-/* EQ: 16-band frequency bars */
-.eq{
-  display: grid;
-  grid-template-columns: repeat(16, 1fr);
-  gap: 3px;
-  height: 22px;
-  align-items: end;
-}
-
-.eq i{
-  display:block;
-  height: 3%;
-  background: var(--fill);
-  border-radius: 2px;
-  opacity: 0.9;
+.wave{
+  width: 100%;
+  height: 26px;          /* CSS height */
+  display: block;
+  border-radius: 6px;
+  background: transparent;
+  cursor: pointer;
 }
 </style>
 </head>
@@ -154,7 +144,7 @@ body{
 
       <div class="seekwrap">
         <input class="range" type="range" min="0" max="100" value="0" step="0.1" data-seek>
-        <div class="eq" data-eq aria-hidden="true"></div>
+        <canvas class="wave" height="26" data-wave></canvas>
       </div>
 
       <div class="dur" data-duration>0:00</div>
@@ -184,7 +174,7 @@ body{
 
       <div class="seekwrap">
         <input class="range" type="range" min="0" max="100" value="0" step="0.1" data-seek>
-        <div class="eq" data-eq aria-hidden="true"></div>
+        <canvas class="wave" height="26" data-wave></canvas>
       </div>
 
       <div class="dur" data-duration>0:00</div>
@@ -214,7 +204,7 @@ body{
 
       <div class="seekwrap">
         <input class="range" type="range" min="0" max="100" value="0" step="0.1" data-seek>
-        <div class="eq" data-eq aria-hidden="true"></div>
+        <canvas class="wave" height="26" data-wave></canvas>
       </div>
 
       <div class="dur" data-duration>0:00</div>
@@ -244,14 +234,14 @@ body{
 
       <div class="seekwrap">
         <input class="range" type="range" min="0" max="100" value="0" step="0.1" data-seek>
-        <div class="eq" data-eq aria-hidden="true"></div>
+        <canvas class="wave" height="26" data-wave></canvas>
       </div>
 
       <div class="dur" data-duration>0:00</div>
 
       <div class="icon" aria-hidden="true">
         <svg viewBox="0 0 24 24">
-          <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/>
+          <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/>
         </svg>
       </div>
 
@@ -267,7 +257,9 @@ body{
 
 <script>
 /* =========================
-   Players + EQ Visualizer
+   Players + Waveform Preview
+   - Draw waveform BEFORE play by decoding the audio.
+   - Highlight progress while playing.
 ========================= */
 
 const fmtTime = (sec) => {
@@ -279,19 +271,112 @@ const fmtTime = (sec) => {
 const setPct = (el,p)=>el.style.setProperty('--pct',`${p}%`);
 
 const players = [];
-let ctx = null;
+let audioCtx = null;
 
-function getCtx(){
-  if (!ctx) ctx = new (window.AudioContext || window.webkitAudioContext)();
-  return ctx;
+function getAudioCtx(){
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
 }
-async function resumeCtx(){
-  const c = getCtx();
+async function resumeAudioCtx(){
+  const c = getAudioCtx();
   if (c.state === "suspended"){
     try { await c.resume(); } catch {}
   }
 }
 
+/* ---------- Waveform preview ---------- */
+const waveformCache = new Map(); // url -> Float32Array peaks
+
+function getSourceUrl(audioEl){
+  const src = audioEl.querySelector("source");
+  return src ? src.getAttribute("src") : audioEl.currentSrc;
+}
+
+function computePeaks(channelData, barsCount){
+  const len = channelData.length;
+  const blockSize = Math.floor(len / barsCount) || 1;
+  const peaks = new Float32Array(barsCount);
+
+  for (let i = 0; i < barsCount; i++){
+    const start = i * blockSize;
+    const end = Math.min(start + blockSize, len);
+    let max = 0;
+    for (let j = start; j < end; j++){
+      const v = Math.abs(channelData[j]);
+      if (v > max) max = v;
+    }
+    peaks[i] = max; // 0..1
+  }
+  return peaks;
+}
+
+function drawWave(canvas, peaks, progress01 = 0){
+  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const cssW = canvas.clientWidth || 1;
+  const cssH = canvas.clientHeight || 26;
+
+  canvas.width = Math.floor(cssW * dpr);
+  canvas.height = Math.floor(cssH * dpr);
+
+  const g = canvas.getContext("2d");
+  g.setTransform(dpr, 0, 0, dpr, 0, 0);
+  g.clearRect(0, 0, cssW, cssH);
+
+  const mid = cssH / 2;
+  const barW = cssW / peaks.length;
+
+  const base = "#cfcfcf";
+  const played = "#888888";
+  const playhead = "#666666";
+
+  for (let i = 0; i < peaks.length; i++){
+    const x = i * barW;
+    const h = Math.max(1, peaks[i] * (cssH * 0.9));
+    const y = mid - h / 2;
+
+    const t = (i + 1) / peaks.length;
+    g.fillStyle = (t <= progress01) ? played : base;
+
+    const w = Math.max(1, barW * 0.75);
+    g.fillRect(x + (barW - w)/2, y, w, h);
+  }
+
+  const px = progress01 * cssW;
+  g.fillStyle = playhead;
+  g.fillRect(px, 0, 1, cssH);
+}
+
+async function ensureWaveform(audioEl, canvas){
+  const url = getSourceUrl(audioEl);
+  if (!url || !canvas) return null;
+
+  const redraw = (progress01=0) => {
+    const peaks = waveformCache.get(url);
+    if (peaks) drawWave(canvas, peaks, progress01);
+  };
+
+  if (waveformCache.has(url)){
+    redraw(0);
+    return redraw;
+  }
+
+  const c = getAudioCtx();
+  const res = await fetch(url);
+  if (!res.ok) throw new Error("Failed to fetch audio: " + url);
+  const arr = await res.arrayBuffer();
+  const buf = await c.decodeAudioData(arr);
+
+  const ch0 = buf.getChannelData(0);
+
+  const approxBars = Math.max(140, Math.min(700, Math.floor((canvas.clientWidth || 700) / 3)));
+  const peaks = computePeaks(ch0, approxBars);
+
+  waveformCache.set(url, peaks);
+  redraw(0);
+  return redraw;
+}
+
+/* ---------- Player wiring ---------- */
 document.querySelectorAll('[data-player]').forEach(root=>{
   const audio = root.querySelector('[data-audio]');
   const playBtn = root.querySelector('[data-play]');
@@ -300,96 +385,20 @@ document.querySelectorAll('[data-player]').forEach(root=>{
   const vol = root.querySelector('[data-vol]');
   const cur = root.querySelector('[data-current]');
   const dur = root.querySelector('[data-duration]');
-  const eqBox = root.querySelector('[data-eq]');
+  const waveCanvas = root.querySelector('[data-wave]');
 
   players.push({ audio });
 
-  // UI init
-  setPct(vol, Number(vol.value) * 100);
-
-  // --- WebAudio nodes (lazy) ---
-  let wired = false;
-  let gainNode = null;
-  let analyser = null;
-
-  // EQ config
-  const BANDS = 16;
-  let bars = [];
-  let freqData = null;
-  let smooth = new Array(BANDS).fill(0);
-
-  function buildEQ(){
-    if (!eqBox) return;
-    eqBox.innerHTML = "";
-    bars = [];
-    for (let i = 0; i < BANDS; i++){
-      const b = document.createElement("i");
-      eqBox.appendChild(b);
-      bars.push(b);
-    }
-  }
-  buildEQ();
-
-  function wire(){
-    if (wired) return;
-    wired = true;
-
-    const c = getCtx();
-    const source = c.createMediaElementSource(audio);
-
-    analyser = c.createAnalyser();
-    analyser.fftSize = 2048;
-    analyser.smoothingTimeConstant = 0.75;
-
-    gainNode = c.createGain();
-    gainNode.gain.value = Number(vol.value || 1);
-
-    source.connect(analyser);
-    analyser.connect(gainNode);
-    gainNode.connect(c.destination);
-
-    freqData = new Uint8Array(analyser.frequencyBinCount);
-
-    const tick = () => {
-      if (!analyser || !freqData) return;
-
-      // paused/ended: decay
-      if (audio.paused || audio.ended){
-        for (let i = 0; i < BANDS; i++){
-          smooth[i] *= 0.85;
-          if (bars[i]) bars[i].style.height = `${Math.max(3, smooth[i])}%`;
-        }
-        requestAnimationFrame(tick);
-        return;
-      }
-
-      analyser.getByteFrequencyData(freqData);
-
-      const N = freqData.length;
-
-      for (let i = 0; i < BANDS; i++){
-        const t = i / (BANDS - 1);
-        // low-end emphasis (log-ish)
-        const idx = Math.floor(Math.pow(t, 1.6) * (N - 1));
-
-        const v = freqData[idx] / 255;         // 0..1
-        const target = Math.min(100, Math.max(0, v * 140)); // boost for visibility
-
-        smooth[i] = smooth[i] * 0.7 + target * 0.3;
-
-        if (bars[i]){
-          bars[i].style.height = `${Math.max(3, smooth[i])}%`;
-        }
-      }
-
-      requestAnimationFrame(tick);
-    };
-    tick();
-  }
+  // preload waveform (before play)
+  let redrawWave = null;
+  ensureWaveform(audio, waveCanvas)
+    .then(fn => { redrawWave = fn; })
+    .catch(() => { /* waveform failed; ignore */ });
 
   // metadata
   audio.addEventListener('loadedmetadata',()=>{
     dur.textContent = fmtTime(audio.duration);
+    if (redrawWave) redrawWave(0);
   });
 
   // time update
@@ -398,6 +407,11 @@ document.querySelectorAll('[data-player]').forEach(root=>{
     const p = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
     seek.value = p;
     setPct(seek, p);
+
+    if (redrawWave){
+      const progress01 = audio.duration ? (audio.currentTime / audio.duration) : 0;
+      redrawWave(progress01);
+    }
   });
 
   // play/pause icon + one-at-a-time
@@ -412,10 +426,9 @@ document.querySelectorAll('[data-player]').forEach(root=>{
     ico.innerHTML = '<path d="M8 5v14l11-7z"/>';
   });
 
-  // play toggle (user gesture → resumeCtx)
+  // play toggle
   playBtn.addEventListener('click', async ()=>{
-    await resumeCtx();
-    wire();
+    await resumeAudioCtx(); // helps decode/play on some mobile browsers
     audio.paused ? audio.play() : audio.pause();
   });
 
@@ -424,16 +437,40 @@ document.querySelectorAll('[data-player]').forEach(root=>{
     const t = (seek.value/100) * (audio.duration || 0);
     cur.textContent = fmtTime(t);
     setPct(seek, seek.value);
+    if (redrawWave) redrawWave(seek.value/100);
   });
+
   seek.addEventListener('change',()=>{
     audio.currentTime = (seek.value/100) * (audio.duration || 0);
   });
 
-  // volume (WebAudio gain)
+  // click waveform to seek
+  if (waveCanvas){
+    waveCanvas.addEventListener("click", (e) => {
+      if (!audio.duration) return;
+      const rect = waveCanvas.getBoundingClientRect();
+      const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+      const progress = rect.width ? (x / rect.width) : 0;
+      audio.currentTime = progress * audio.duration;
+    });
+  }
+
+  // volume
   vol.addEventListener('input',()=>{
     const v = Number(vol.value);
     setPct(vol, v*100);
-    if (gainNode) gainNode.gain.value = v;
+    audio.volume = v;
+  });
+
+  // keep waveform crisp on resize
+  let resizeTimer = null;
+  window.addEventListener("resize", () => {
+    if (!redrawWave) return;
+    clearTimeout(resizeTimer);
+    resizeTimer = setTimeout(() => {
+      const progress01 = audio.duration ? (audio.currentTime / audio.duration) : 0;
+      redrawWave(progress01);
+    }, 120);
   });
 });
 </script>

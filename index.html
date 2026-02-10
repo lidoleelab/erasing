@@ -365,35 +365,6 @@ async function ensureWaveform(audioEl, canvas){
   redraw(0);
   return redraw;
 }
-/* =========================
-   MOBILE: hide volume only
-   keep seek + amplitude visible
-   ========================= */
-@media (max-width: 768px){
-
-  /* 볼륨 아이콘 + 볼륨 슬라이더만 숨김 */
-  [data-player] .icon{ display:none !important; }
-  [data-player] [data-vol]{ display:none !important; }
-
-  /* 모바일에서는 4컬럼으로: play / current / (seek+wave) / duration */
-  [data-player]{
-    grid-template-columns: auto auto 1fr auto !important;
-    gap: 10px !important;
-  }
-
-  /* seek+wave 영역이 눌리지 않게 */
-  [data-player] .seekwrap{
-    min-width: 0 !important;
-    width: 100% !important;
-  }
-
-  /* wave 캔버스가 확실히 보이게 */
-  [data-player] .wave{
-    display:block !important;
-    width:100% !important;
-    height: 26px !important;
-  }
-}
 
 
 

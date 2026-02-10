@@ -497,54 +497,47 @@ document.querySelectorAll("audio").forEach(a=>{
 </script>
 <script>
 (() => {
-  const isMobile = window.matchMedia("(max-width: 768px)").matches;
-  if (!isMobile) return;
+  if (!window.matchMedia("(max-width: 768px)").matches) return;
 
-  function stripVolume(root){
-    // 1) 볼륨 슬라이더 후보들(가장 확실한 순서로)
-    const vol =
-      root.querySelector("[data-vol]") ||
-      root.querySelector("input.vol") ||
-      root.querySelector('input[type="range"][max="1"]') ||   // 볼륨은 보통 0~1
-      null;
-
-    if (vol) {
-      // 2) 볼륨 아이콘(대개 볼륨 슬라이더 바로 앞 요소)
+  function applyMobileLayout(root){
+    // 1) 볼륨 슬라이더(정확히 data-vol만) 제거
+    const vol = root.querySelector("[data-vol]");
+    if (vol){
       const prev = vol.previousElementSibling;
-      if (prev && prev.classList && prev.classList.contains("icon")) prev.remove();
+      if (prev && prev.classList && prev.classList.contains("icon")) prev.remove(); // 볼륨 아이콘
       vol.remove();
-    } else {
-      // 혹시 data-vol 구조가 다를 때: 마지막 .icon 제거 시도
-      const icons = root.querySelectorAll(".icon");
-      if (icons.length) icons[icons.length - 1].remove();
     }
 
-    // 3) 모바일 그리드 4칸으로 고정 (play / time / seek+amp / dur)
+    // 2) 모바일 grid를 4칸으로 재정의 (play / current / seek+wave / duration)
     root.style.gridTemplateColumns = "auto auto 1fr auto";
     root.style.gap = "10px";
+
+    // 3) 파형 영역이 줄지 않게 강제
+    const seekwrap = root.querySelector(".seekwrap");
+    if (seekwrap){
+      seekwrap.style.minWidth = "0";
+      seekwrap.style.width = "100%";
+    }
+
+    // 4) 캔버스가 0폭으로 굳는 것 방지: 한 번 리사이즈 이벤트
+    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
   }
 
   function run(){
-    document.querySelectorAll("[data-player]").forEach(stripVolume);
+    document.querySelectorAll("[data-player]").forEach(applyMobileLayout);
   }
 
-  // 초기 적용
   if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", run, { once: true });
+    document.addEventListener("DOMContentLoaded", run, { once:true });
   } else {
     run();
   }
 
-  // ✅ “나중에 DOM이 바뀌는 경우”까지 잡기 (볼륨이 되살아나는 문제 해결)
-  const mo = new MutationObserver(() => run());
-  mo.observe(document.documentElement, { childList: true, subtree: true });
-
-  // iOS/Safari 레이아웃 안정화용 재실행
-  setTimeout(run, 150);
-  setTimeout(run, 600);
+  // 모바일 회전/리사이즈 때만 다시 적용(Observer는 쓰지 않음)
   window.addEventListener("resize", run);
 })();
 </script>
+
 
 
 </body>

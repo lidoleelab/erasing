@@ -388,36 +388,6 @@ async function ensureWaveform(audioEl, canvas){
   /* .wave{ height: 28px; } */
 }
 
-/* =========================
-   MOBILE LAYOUT FIX
-   ========================= */
-@media screen and (max-width: 768px){
-
-  /* 볼륨 아이콘 + 슬라이더 완전 제거 */
-  .player .icon,
-  .player input.vol{
-    display: none !important;
-    width: 0 !important;
-  }
-
-  /* grid를 4컬럼 구조로 재정의 */
-  .player{
-    grid-template-columns: auto auto 1fr auto !important;
-    gap: 10px !important;
-  }
-
-  /* seek 영역이 줄어들지 않도록 */
-  .seekwrap{
-    min-width: 0 !important;
-    width: 100% !important;
-  }
-
-  /* amplitude(파형) 더 잘 보이도록 살짝 키워도 됨 */
-  .wave{
-    height: 28px !important;
-  }
-}
-
 
 /* =========================
    Player wiring
@@ -524,6 +494,41 @@ window.addEventListener("resize", sendHeight);
 document.querySelectorAll("audio").forEach(a=>{
   a.addEventListener("loadedmetadata", sendHeight);
 });
+</script>
+<script>
+(() => {
+  const isMobile = window.matchMedia("(max-width: 768px)").matches;
+  if (!isMobile) return;
+
+  document.querySelectorAll("[data-player]").forEach(root => {
+    // 볼륨 슬라이더 제거 (data-vol 기준이 가장 확실)
+    const vol = root.querySelector("[data-vol]");
+    if (vol) vol.remove();
+
+    // 볼륨 아이콘 제거 (볼륨 바로 앞에 있는 .icon을 우선 제거)
+    const icons = root.querySelectorAll(".icon");
+    if (icons && icons.length) {
+      // 보통 마지막 icon이 볼륨 아이콘
+      icons[icons.length - 1].remove();
+    }
+
+    // 모바일에서는 플레이어 그리드를 4칸으로 재구성
+    root.style.gridTemplateColumns = "auto auto 1fr auto";
+    root.style.gap = "10px";
+
+    // seek/wave가 줄어들지 않게
+    const seekwrap = root.querySelector(".seekwrap");
+    if (seekwrap) {
+      seekwrap.style.minWidth = "0";
+      seekwrap.style.width = "100%";
+    }
+  });
+
+  // iOS Safari에서 레이아웃 한번 더 안정화
+  requestAnimationFrame(() => {
+    window.dispatchEvent(new Event("resize"));
+  });
+})();
 </script>
 
 </body>

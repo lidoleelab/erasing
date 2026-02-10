@@ -365,27 +365,34 @@ async function ensureWaveform(audioEl, canvas){
   redraw(0);
   return redraw;
 }
-/* Mobile: hide volume controls to give space to seek + amplitude */
-@media (max-width: 600px){
-  /* 볼륨 아이콘 + 볼륨 슬라이더 숨김 */
+/* =========================
+   MOBILE LAYOUT FIX
+   ========================= */
+@media screen and (max-width: 768px){
+
+  /* 볼륨 아이콘 + 슬라이더 완전 제거 */
   .player .icon,
-  .player .vol{
+  .player input.vol{
     display: none !important;
+    width: 0 !important;
   }
 
-  /* 그리드 칼럼 재배치: (play) (time) (seek+wave) (duration) */
+  /* grid를 4컬럼 구조로 재정의 */
   .player{
-    grid-template-columns: auto auto 1fr auto;
-    gap: 12px;
+    grid-template-columns: auto auto 1fr auto !important;
+    gap: 10px !important;
   }
 
-  /* seek 영역이 줄어들지 않게 */
+  /* seek 영역이 줄어들지 않도록 */
   .seekwrap{
-    min-width: 0;
+    min-width: 0 !important;
+    width: 100% !important;
   }
 
-  /* (선택) 모바일에서 wave 높이 살짝 키우고 싶으면 */
-  /* .wave{ height: 28px; } */
+  /* amplitude(파형) 더 잘 보이도록 살짝 키워도 됨 */
+  .wave{
+    height: 28px !important;
+  }
 }
 
 

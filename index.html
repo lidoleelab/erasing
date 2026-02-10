@@ -500,36 +500,52 @@ document.querySelectorAll("audio").forEach(a=>{
   const isMobile = window.matchMedia("(max-width: 768px)").matches;
   if (!isMobile) return;
 
-  document.querySelectorAll("[data-player]").forEach(root => {
-    // 볼륨 슬라이더 제거 (data-vol 기준이 가장 확실)
-    const vol = root.querySelector("[data-vol]");
-    if (vol) vol.remove();
+  function stripVolume(root){
+    // 1) 볼륨 슬라이더 후보들(가장 확실한 순서로)
+    const vol =
+      root.querySelector("[data-vol]") ||
+      root.querySelector("input.vol") ||
+      root.querySelector('input[type="range"][max="1"]') ||   // 볼륨은 보통 0~1
+      null;
 
-    // 볼륨 아이콘 제거 (볼륨 바로 앞에 있는 .icon을 우선 제거)
-    const icons = root.querySelectorAll(".icon");
-    if (icons && icons.length) {
-      // 보통 마지막 icon이 볼륨 아이콘
-      icons[icons.length - 1].remove();
+    if (vol) {
+      // 2) 볼륨 아이콘(대개 볼륨 슬라이더 바로 앞 요소)
+      const prev = vol.previousElementSibling;
+      if (prev && prev.classList && prev.classList.contains("icon")) prev.remove();
+      vol.remove();
+    } else {
+      // 혹시 data-vol 구조가 다를 때: 마지막 .icon 제거 시도
+      const icons = root.querySelectorAll(".icon");
+      if (icons.length) icons[icons.length - 1].remove();
     }
 
-    // 모바일에서는 플레이어 그리드를 4칸으로 재구성
+    // 3) 모바일 그리드 4칸으로 고정 (play / time / seek+amp / dur)
     root.style.gridTemplateColumns = "auto auto 1fr auto";
     root.style.gap = "10px";
+  }
 
-    // seek/wave가 줄어들지 않게
-    const seekwrap = root.querySelector(".seekwrap");
-    if (seekwrap) {
-      seekwrap.style.minWidth = "0";
-      seekwrap.style.width = "100%";
-    }
-  });
+  function run(){
+    document.querySelectorAll("[data-player]").forEach(stripVolume);
+  }
 
-  // iOS Safari에서 레이아웃 한번 더 안정화
-  requestAnimationFrame(() => {
-    window.dispatchEvent(new Event("resize"));
-  });
+  // 초기 적용
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", run, { once: true });
+  } else {
+    run();
+  }
+
+  // ✅ “나중에 DOM이 바뀌는 경우”까지 잡기 (볼륨이 되살아나는 문제 해결)
+  const mo = new MutationObserver(() => run());
+  mo.observe(document.documentElement, { childList: true, subtree: true });
+
+  // iOS/Safari 레이아웃 안정화용 재실행
+  setTimeout(run, 150);
+  setTimeout(run, 600);
+  window.addEventListener("resize", run);
 })();
 </script>
+
 
 </body>
 </html>

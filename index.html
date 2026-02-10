@@ -365,28 +365,36 @@ async function ensureWaveform(audioEl, canvas){
   redraw(0);
   return redraw;
 }
-/* Mobile: hide volume controls to give space to seek + amplitude */
-@media (max-width: 600px){
-  /* 볼륨 아이콘 + 볼륨 슬라이더 숨김 */
-  .player .icon,
-  .player .vol{
-    display: none !important;
+/* =========================
+   MOBILE: hide volume only
+   keep seek + amplitude visible
+   ========================= */
+@media (max-width: 768px){
+
+  /* 볼륨 아이콘 + 볼륨 슬라이더만 숨김 */
+  [data-player] .icon{ display:none !important; }
+  [data-player] [data-vol]{ display:none !important; }
+
+  /* 모바일에서는 4컬럼으로: play / current / (seek+wave) / duration */
+  [data-player]{
+    grid-template-columns: auto auto 1fr auto !important;
+    gap: 10px !important;
   }
 
-  /* 그리드 칼럼 재배치: (play) (time) (seek+wave) (duration) */
-  .player{
-    grid-template-columns: auto auto 1fr auto;
-    gap: 12px;
+  /* seek+wave 영역이 눌리지 않게 */
+  [data-player] .seekwrap{
+    min-width: 0 !important;
+    width: 100% !important;
   }
 
-  /* seek 영역이 줄어들지 않게 */
-  .seekwrap{
-    min-width: 0;
+  /* wave 캔버스가 확실히 보이게 */
+  [data-player] .wave{
+    display:block !important;
+    width:100% !important;
+    height: 26px !important;
   }
-
-  /* (선택) 모바일에서 wave 높이 살짝 키우고 싶으면 */
-  /* .wave{ height: 28px; } */
 }
+
 
 
 /* =========================
@@ -494,48 +502,6 @@ window.addEventListener("resize", sendHeight);
 document.querySelectorAll("audio").forEach(a=>{
   a.addEventListener("loadedmetadata", sendHeight);
 });
-</script>
-<script>
-(() => {
-  if (!window.matchMedia("(max-width: 768px)").matches) return;
-
-  function applyMobileLayout(root){
-    // 1) 볼륨 슬라이더(정확히 data-vol만) 제거
-    const vol = root.querySelector("[data-vol]");
-    if (vol){
-      const prev = vol.previousElementSibling;
-      if (prev && prev.classList && prev.classList.contains("icon")) prev.remove(); // 볼륨 아이콘
-      vol.remove();
-    }
-
-    // 2) 모바일 grid를 4칸으로 재정의 (play / current / seek+wave / duration)
-    root.style.gridTemplateColumns = "auto auto 1fr auto";
-    root.style.gap = "10px";
-
-    // 3) 파형 영역이 줄지 않게 강제
-    const seekwrap = root.querySelector(".seekwrap");
-    if (seekwrap){
-      seekwrap.style.minWidth = "0";
-      seekwrap.style.width = "100%";
-    }
-
-    // 4) 캔버스가 0폭으로 굳는 것 방지: 한 번 리사이즈 이벤트
-    requestAnimationFrame(() => window.dispatchEvent(new Event("resize")));
-  }
-
-  function run(){
-    document.querySelectorAll("[data-player]").forEach(applyMobileLayout);
-  }
-
-  if (document.readyState === "loading") {
-    document.addEventListener("DOMContentLoaded", run, { once:true });
-  } else {
-    run();
-  }
-
-  // 모바일 회전/리사이즈 때만 다시 적용(Observer는 쓰지 않음)
-  window.addEventListener("resize", run);
-})();
 </script>
 
 

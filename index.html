@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Residual Birth by Digitizing</title>
 
-<!-- ✅ preload 힌트: 파형(미리보기) 만들 파일을 미리 받아두기 -->
+<!-- (선택) 파형 미리 뜨는 속도 개선 -->
 <link rel="preload" as="audio" href="audio/01_original.mp3" type="audio/mpeg">
 <link rel="preload" as="audio" href="audio/02_denoised.mp3" type="audio/mpeg">
 <link rel="preload" as="audio" href="audio/03_no_noise_no_bgm.mp3" type="audio/mpeg">
@@ -20,47 +20,65 @@
   --thumb:#888;
 }
 *{ box-sizing:border-box; }
+
 body{
   margin:0;
   font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
   background: var(--bg);
   color:#111;
 }
+
 .wrap{
   max-width: 860px;
   margin: 40px auto;
   padding: 0 16px 40px;
 }
+
 .stack{
   display: grid;
   grid-template-columns: 1fr;
   gap: 28px;
 }
+
+/* ===== PLAYER LAYOUT ===== */
 .player{
   display: grid;
-  grid-template-columns: auto auto 1fr auto auto auto;
+  grid-template-columns: auto auto 1fr auto auto; /* play | current | seek+amp | dur | volume */
   align-items: center;
   gap: 14px;
   width: 100%;
   padding-bottom: 12px;
 }
+
 .btn{
   border: none;
   background: transparent;
   padding: 0;
   cursor: pointer;
 }
+
 .btn svg{
   width: 24px;
   height: 24px;
   fill: var(--ui);
 }
+
 .time, .dur{
   font-variant-numeric: tabular-nums;
   color: var(--ui);
   font-size: 14px;
   min-width: 46px;
 }
+
+/* seek + amplitude stack */
+.seekwrap{
+  display: grid;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+/* slider */
 .range{
   width: 100%;
   -webkit-appearance: none;
@@ -74,6 +92,7 @@ body{
     var(--track) 100%);
   outline: none;
 }
+
 .range::-webkit-slider-thumb{
   -webkit-appearance: none;
   width: 14px;
@@ -89,23 +108,8 @@ body{
   background: var(--thumb);
   cursor: pointer;
 }
-.icon{
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.icon svg{
-  width: 20px;
-  height: 20px;
-  fill: var(--ui);
-}
-.vol{ width: 120px; }
 
-.seekwrap{
-  display: grid;
-  gap: 10px;
-  align-items: center;
-}
+/* amplitude canvas */
 .wave{
   width: 100%;
   height: 26px;
@@ -114,6 +118,45 @@ body{
   background: transparent;
   cursor: pointer;
 }
+
+/* ===== VOLUME GROUP (THIS IS WHAT WE HIDE ON MOBILE) ===== */
+.volume{
+  display: inline-grid;
+  grid-template-columns: auto 120px;
+  gap: 10px;
+  align-items: center;
+  justify-content: end;
+}
+
+.volume .icon{
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.volume .icon svg{
+  width: 20px;
+  height: 20px;
+  fill: var(--ui);
+}
+
+.volume .vol{
+  width: 120px;
+}
+
+/* ===== MOBILE: REMOVE VOLUME ONLY ===== */
+@media (max-width: 768px){
+  .player{
+    grid-template-columns: auto auto 1fr auto; /* volume column removed */
+    gap: 10px;
+  }
+  .volume{
+    display: none !important; /* ✅ 모바일에서만 볼륨 완전 제거 */
+  }
+  .wave{
+    height: 28px; /* (선택) 모바일에서 살짝 두껍게 */
+  }
+}
 </style>
 </head>
 
@@ -121,11 +164,12 @@ body{
 <div class="wrap">
   <section class="stack">
 
-    <!-- PLAYER TEMPLATE x4 -->
+    <!-- PLAYER 1 -->
     <div class="player" data-player>
       <button class="btn" data-play aria-label="play/pause">
         <svg viewBox="0 0 24 24" data-ico><path d="M8 5v14l11-7z"/></svg>
       </button>
+
       <div class="time" data-current>0:00</div>
 
       <div class="seekwrap">
@@ -135,21 +179,26 @@ body{
 
       <div class="dur" data-duration>0:00</div>
 
-      <div class="icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/></svg>
+      <div class="volume">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/>
+          </svg>
+        </span>
+        <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol aria-label="volume">
       </div>
-
-      <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol aria-label="volume">
 
       <audio preload="metadata" data-audio>
         <source src="audio/01_original.mp3" type="audio/mpeg">
       </audio>
     </div>
 
+    <!-- PLAYER 2 -->
     <div class="player" data-player>
       <button class="btn" data-play aria-label="play/pause">
         <svg viewBox="0 0 24 24" data-ico><path d="M8 5v14l11-7z"/></svg>
       </button>
+
       <div class="time" data-current>0:00</div>
 
       <div class="seekwrap">
@@ -159,21 +208,26 @@ body{
 
       <div class="dur" data-duration>0:00</div>
 
-      <div class="icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/></svg>
+      <div class="volume">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/>
+          </svg>
+        </span>
+        <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol aria-label="volume">
       </div>
-
-      <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol aria-label="volume">
 
       <audio preload="metadata" data-audio>
         <source src="audio/02_denoised.mp3" type="audio/mpeg">
       </audio>
     </div>
 
+    <!-- PLAYER 3 -->
     <div class="player" data-player>
       <button class="btn" data-play aria-label="play/pause">
         <svg viewBox="0 0 24 24" data-ico><path d="M8 5v14l11-7z"/></svg>
       </button>
+
       <div class="time" data-current>0:00</div>
 
       <div class="seekwrap">
@@ -183,21 +237,26 @@ body{
 
       <div class="dur" data-duration>0:00</div>
 
-      <div class="icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/></svg>
+      <div class="volume">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/>
+          </svg>
+        </span>
+        <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol aria-label="volume">
       </div>
-
-      <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol aria-label="volume">
 
       <audio preload="metadata" data-audio>
         <source src="audio/03_no_noise_no_bgm.mp3" type="audio/mpeg">
       </audio>
     </div>
 
+    <!-- PLAYER 4 -->
     <div class="player" data-player>
       <button class="btn" data-play aria-label="play/pause">
         <svg viewBox="0 0 24 24" data-ico><path d="M8 5v14l11-7z"/></svg>
       </button>
+
       <div class="time" data-current>0:00</div>
 
       <div class="seekwrap">
@@ -207,11 +266,14 @@ body{
 
       <div class="dur" data-duration>0:00</div>
 
-      <div class="icon" aria-hidden="true">
-        <svg viewBox="0 0 24 24"><path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/></svg>
+      <div class="volume">
+        <span class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24">
+            <path d="M3 10v4h4l5 4V6L7 10H3zm13.5 2a3.5 3.5 0 0 0-2-3.16v6.32A3.5 3.5 0 0 0 16.5 12zm0-7a8.5 8.5 0 0 1 0 14v-2a6.5 6.5 0 0 0 0-10V5z"/>
+          </svg>
+        </span>
+        <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol aria-label="volume">
       </div>
-
-      <input class="range vol" type="range" min="0" max="1" value="1" step="0.01" data-vol aria-label="volume">
 
       <audio preload="metadata" data-audio>
         <source src="audio/04_residual.mp3" type="audio/mpeg">
@@ -222,260 +284,211 @@ body{
 </div>
 
 <script>
-/* =========================
-   Thin-bar waveform preview
-   - draws placeholder immediately (no "late pop-in" feeling)
-   - peaks generated at fixed resolution
-   - redraw on ResizeObserver
-========================= */
-
-const setPct = (el,p)=>el.style.setProperty('--pct',`${p}%`);
-const players = [];
-let audioCtx = null;
-
-function getAudioCtx(){
-  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-  return audioCtx;
-}
-async function resumeAudioCtx(){
-  const c = getAudioCtx();
-  if (c.state === "suspended"){
-    try { await c.resume(); } catch {}
-  }
-}
-
+/* ===== helpers ===== */
 const fmtTime = (sec) => {
   sec = Math.max(0, sec || 0);
   const m = Math.floor(sec / 60);
   const s = Math.floor(sec % 60);
   return `${m}:${String(s).padStart(2,'0')}`;
 };
+const setPct = (el,p)=>el.style.setProperty('--pct',`${p}%`);
 
-function getSourceUrl(audioEl){
-  const src = audioEl.querySelector("source");
-  return src ? src.getAttribute("src") : audioEl.currentSrc;
+let audioCtx = null;
+function getCtx(){
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
 }
 
+/* ===== waveform (thin bars) ===== */
 const waveformCache = new Map();
-const PEAKS_RESOLUTION = 1400; // ✅ 조금 낮춰서 디코드/계산 체감 속도 개선
+const PEAKS = 1200;
 
-function computePeaks(channelData, count){
-  const len = channelData.length;
-  const block = Math.floor(len / count) || 1;
-  const peaks = new Float32Array(count);
-  for (let i = 0; i < count; i++){
-    const start = i * block;
-    const end = Math.min(start + block, len);
-    let max = 0;
-    for (let j = start; j < end; j++){
-      const v = Math.abs(channelData[j]);
-      if (v > max) max = v;
-    }
-    peaks[i] = max;
-  }
-  return peaks;
-}
-
-/* ✅ placeholder: 즉시 얇은 baseline을 먼저 그려서 "늦게 뜨는" 느낌 제거 */
 function drawPlaceholder(canvas){
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
+  const dpr = Math.max(1, devicePixelRatio || 1);
   const W = Math.max(1, canvas.clientWidth || 1);
   const H = Math.max(1, canvas.clientHeight || 26);
-
-  canvas.width = Math.floor(W * dpr);
-  canvas.height = Math.floor(H * dpr);
-
+  canvas.width = Math.floor(W*dpr);
+  canvas.height = Math.floor(H*dpr);
   const g = canvas.getContext("2d");
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.clearRect(0, 0, W, H);
-
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,W,H);
   g.fillStyle = "#e2e2e2";
   g.fillRect(0, Math.floor(H/2), W, 1);
 }
 
-function drawBars(canvas, peaks, progress01 = 0){
-  const dpr = Math.max(1, window.devicePixelRatio || 1);
+function drawBars(canvas, peaks, progress01=0){
+  const dpr = Math.max(1, devicePixelRatio || 1);
   const W = Math.max(1, canvas.clientWidth || 1);
   const H = Math.max(1, canvas.clientHeight || 26);
-
-  canvas.width = Math.floor(W * dpr);
-  canvas.height = Math.floor(H * dpr);
+  canvas.width = Math.floor(W*dpr);
+  canvas.height = Math.floor(H*dpr);
 
   const g = canvas.getContext("2d");
-  g.setTransform(dpr, 0, 0, dpr, 0, 0);
-  g.clearRect(0, 0, W, H);
+  g.setTransform(dpr,0,0,dpr,0,0);
+  g.clearRect(0,0,W,H);
 
-  const mid = H / 2;
+  const mid = H/2;
   const base = "#cfcfcf";
-  const played = "#888888";
-  const playhead = "#666666";
+  const played = "#888";
+  const playhead = "#666";
 
-  const barCount = Math.max(90, Math.min(520, Math.floor(W / 3))); // 촘촘한 막대
+  const barCount = Math.max(90, Math.min(520, Math.floor(W/3)));
   const N = peaks.length;
-
   const barW = W / barCount;
-  const w = Math.max(1, barW * 0.55); // 얇게
+  const w = Math.max(1, barW * 0.55);
 
-  for (let i = 0; i < barCount; i++){
-    const t = i / (barCount - 1);
-    const idx = Math.min(N - 1, Math.floor(t * (N - 1)));
+  for (let i=0;i<barCount;i++){
+    const t = i/(barCount-1);
+    const idx = Math.min(N-1, Math.floor(t*(N-1)));
     const p = peaks[idx];
-
-    const h = Math.max(1, p * (H * 0.9));
-    const x = i * barW + (barW - w) / 2;
-    const y = mid - h / 2;
-
-    g.fillStyle = (t <= progress01) ? played : base;
-    g.fillRect(x, y, w, h);
+    const h = Math.max(1, p * (H*0.9));
+    const x = i*barW + (barW-w)/2;
+    const y = mid - h/2;
+    g.fillStyle = (t<=progress01) ? played : base;
+    g.fillRect(x,y,w,h);
   }
 
-  const px = progress01 * W;
+  const px = progress01*W;
   g.fillStyle = playhead;
-  g.fillRect(px, 0, 1, H);
+  g.fillRect(px,0,1,H);
+}
+
+function computePeaks(channelData, count){
+  const len = channelData.length;
+  const block = Math.floor(len / count) || 1;
+  const out = new Float32Array(count);
+  for (let i=0;i<count;i++){
+    const start = i*block;
+    const end = Math.min(start+block, len);
+    let max=0;
+    for (let j=start;j<end;j++){
+      const v = Math.abs(channelData[j]);
+      if (v>max) max=v;
+    }
+    out[i]=max;
+  }
+  return out;
 }
 
 async function ensureWaveform(audioEl, canvas){
-  const url = getSourceUrl(audioEl);
-  if (!url || !canvas) return null;
+  const src = audioEl.querySelector("source")?.getAttribute("src") || audioEl.currentSrc;
+  if (!src) return null;
 
-  const redraw = (progress01=0) => {
-    const peaks = waveformCache.get(url);
-    if (peaks) drawBars(canvas, peaks, progress01);
-    else drawPlaceholder(canvas);
-  };
-
-  // ✅ 즉시 placeholder 1회
   drawPlaceholder(canvas);
 
-  if (waveformCache.has(url)){
-    redraw(0);
-    return redraw;
+  if (waveformCache.has(src)){
+    const peaks = waveformCache.get(src);
+    drawBars(canvas, peaks, 0);
+    return (p01)=>drawBars(canvas, peaks, p01);
   }
 
-  const c = getAudioCtx();
-  const res = await fetch(url, { cache: "force-cache" });
-  if (!res.ok) throw new Error("Failed to fetch audio: " + url);
+  const ctx = getCtx();
+  const res = await fetch(src, { cache: "force-cache" });
   const arr = await res.arrayBuffer();
-  const buf = await c.decodeAudioData(arr);
+  const buf = await ctx.decodeAudioData(arr);
+  const peaks = computePeaks(buf.getChannelData(0), PEAKS);
+  waveformCache.set(src, peaks);
 
-  const ch0 = buf.getChannelData(0);
-  const peaks = computePeaks(ch0, PEAKS_RESOLUTION);
-
-  waveformCache.set(url, peaks);
-  redraw(0);
-  return redraw;
+  drawBars(canvas, peaks, 0);
+  return (p01)=>drawBars(canvas, peaks, p01);
 }
 
+/* ===== players ===== */
+const allAudios = [];
+document.querySelectorAll("[data-player]").forEach(root=>{
+  const audio = root.querySelector("[data-audio]");
+  const playBtn = root.querySelector("[data-play]");
+  const ico = root.querySelector("[data-ico]");
+  const seek = root.querySelector("[data-seek]");
+  const vol = root.querySelector("[data-vol]");
+  const cur = root.querySelector("[data-current]");
+  const dur = root.querySelector("[data-duration]");
+  const wave = root.querySelector("[data-wave]");
 
+  allAudios.push(audio);
+  if (vol) setPct(vol, Number(vol.value)*100);
 
-/* =========================
-   Player wiring
-========================= */
-document.querySelectorAll('[data-player]').forEach(root=>{
-  const audio = root.querySelector('[data-audio]');
-  const playBtn = root.querySelector('[data-play]');
-  const ico = root.querySelector('[data-ico]');
-  const seek = root.querySelector('[data-seek]');
-  const vol = root.querySelector('[data-vol]');
-  const cur = root.querySelector('[data-current]');
-  const dur = root.querySelector('[data-duration]');
-  const waveCanvas = root.querySelector('[data-wave]');
+  let redraw = null;
+  ensureWaveform(audio, wave).then(fn => { redraw = fn; }).catch(()=>{});
 
-  players.push({ audio });
-  setPct(vol, Number(vol.value) * 100);
-
-  let redrawWave = null;
-
-  // ✅ 미리보기 파형 생성은 즉시 시작 (모든 플레이어 동시에)
-  ensureWaveform(audio, waveCanvas)
-    .then(fn => { redrawWave = fn; })
-    .catch(() => { /* ignore */ });
-
-  // ✅ 폭 생기거나 변하면 즉시 다시 그리기 (2번 늦음/미출력 방지)
-  if (waveCanvas && "ResizeObserver" in window){
-    const ro = new ResizeObserver(() => {
-      if (!redrawWave) { drawPlaceholder(waveCanvas); return; }
-      const progress01 = audio.duration ? (audio.currentTime / audio.duration) : 0;
-      redrawWave(progress01);
-    });
-    ro.observe(waveCanvas);
-  }
-
-  audio.addEventListener('loadedmetadata',()=>{
+  audio.addEventListener("loadedmetadata", ()=>{
     dur.textContent = fmtTime(audio.duration);
-    if (redrawWave) redrawWave(0);
+    if (redraw) redraw(0);
   });
 
-  audio.addEventListener('timeupdate',()=>{
+  audio.addEventListener("timeupdate", ()=>{
     cur.textContent = fmtTime(audio.currentTime);
-    const p = audio.duration ? (audio.currentTime / audio.duration) * 100 : 0;
+    const p = audio.duration ? (audio.currentTime/audio.duration)*100 : 0;
     seek.value = p;
     setPct(seek, p);
-
-    if (redrawWave){
-      const progress01 = audio.duration ? (audio.currentTime / audio.duration) : 0;
-      redrawWave(progress01);
+    if (redraw){
+      const p01 = audio.duration ? (audio.currentTime/audio.duration) : 0;
+      redraw(p01);
     }
   });
 
-  audio.addEventListener('play',()=>{
-    players.forEach(p=>{
-      if (p.audio !== audio && !p.audio.paused) p.audio.pause();
-    });
+  audio.addEventListener("play", ()=>{
+    allAudios.forEach(a=>{ if (a!==audio && !a.paused) a.pause(); });
     ico.innerHTML = '<path d="M6 5h4v14H6zm8 0h4v14h-4z"/>';
   });
 
-  audio.addEventListener('pause',()=>{
+  audio.addEventListener("pause", ()=>{
     ico.innerHTML = '<path d="M8 5v14l11-7z"/>';
   });
 
-  playBtn.addEventListener('click', async ()=>{
-    await resumeAudioCtx();
+  playBtn.addEventListener("click", async ()=>{
+    // iOS 정책 대응(재생 시점에 resume)
+    const ctx = getCtx();
+    if (ctx.state === "suspended") { try{ await ctx.resume(); }catch{} }
     audio.paused ? audio.play() : audio.pause();
   });
 
-  seek.addEventListener('input',()=>{
+  seek.addEventListener("input", ()=>{
     const t = (seek.value/100) * (audio.duration || 0);
     cur.textContent = fmtTime(t);
     setPct(seek, seek.value);
-    if (redrawWave) redrawWave(seek.value/100);
+    if (redraw) redraw(seek.value/100);
   });
 
-  seek.addEventListener('change',()=>{
+  seek.addEventListener("change", ()=>{
     audio.currentTime = (seek.value/100) * (audio.duration || 0);
   });
 
-  if (waveCanvas){
-    waveCanvas.addEventListener("click", (e) => {
-      if (!audio.duration) return;
-      const rect = waveCanvas.getBoundingClientRect();
-      const x = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
-      const progress = rect.width ? (x / rect.width) : 0;
-      audio.currentTime = progress * audio.duration;
+  wave.addEventListener("click", (e)=>{
+    if (!audio.duration) return;
+    const r = wave.getBoundingClientRect();
+    const x = Math.max(0, Math.min(r.width, e.clientX - r.left));
+    const p01 = r.width ? x/r.width : 0;
+    audio.currentTime = p01 * audio.duration;
+  });
+
+  if (vol){
+    vol.addEventListener("input", ()=>{
+      const v = Number(vol.value);
+      audio.volume = v;
+      setPct(vol, v*100);
     });
   }
+});
 
-  vol.addEventListener('input',()=>{
-    const v = Number(vol.value);
-    setPct(vol, v*100);
-    audio.volume = v;
+// 캔버스 폭 0/리사이즈 이슈 방지: 로드 후 한번 redraw 트리거
+window.addEventListener("load", ()=>{ setTimeout(()=>window.dispatchEvent(new Event("resize")), 200); });
+window.addEventListener("resize", ()=>{
+  document.querySelectorAll("[data-player]").forEach(root=>{
+    const audio = root.querySelector("[data-audio]");
+    const wave = root.querySelector("[data-wave]");
+    const src = audio.querySelector("source")?.getAttribute("src") || audio.currentSrc;
+    if (!src) return;
+    const peaks = waveformCache.get(src);
+    if (!peaks){
+      drawPlaceholder(wave);
+      return;
+    }
+    const p01 = audio.duration ? (audio.currentTime/audio.duration) : 0;
+    drawBars(wave, peaks, p01);
   });
 });
 </script>
-
-<script>
-function sendHeight(){
-  const h = document.documentElement.scrollHeight;
-  parent.postMessage({ type: "ERASING_HEIGHT", height: h }, "*");
-}
-window.addEventListener("load", sendHeight);
-window.addEventListener("resize", sendHeight);
-document.querySelectorAll("audio").forEach(a=>{
-  a.addEventListener("loadedmetadata", sendHeight);
-});
-</script>
-
-
 
 </body>
 </html>
